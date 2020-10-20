@@ -1,0 +1,100 @@
+/*
+
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/go-logr/logr"
+	v1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	rbacv1alpha1 "github.com/redhat-cop/dynamic-rbac-operator/api/v1alpha1"
+	helpers "github.com/redhat-cop/dynamic-rbac-operator/helpers"
+)
+
+// DynamicRoleReconciler reconciles a DynamicRole object
+type DynamicRoleReconciler struct {
+	client.Client
+	Log    logr.Logger
+	Scheme *runtime.Scheme
+}
+
+// +kubebuilder:rbac:groups=rbac.redhatcop.redhat.io,resources=dynamicroles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.redhatcop.redhat.io,resources=dynamicroles/status,verbs=get;update;patch
+
+func (r *DynamicRoleReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	_ = context.Background()
+	_ = r.Log.WithValues("dynamicrole", req.NamespacedName)
+
+	instance := &rbacv1alpha1.DynamicRole{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, instance)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			return reconcile.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	return ReconcileDynamicRole(instance, r.Client, r.Scheme, r.Log)
+}
+
+func ReconcileDynamicRole(dynamicRole *rbacv1alpha1.DynamicRole, client client.Client, scheme *runtime.Scheme, logger logr.Logger) (ctrl.Result, error) {
+	rules, err := helpers.BuildPolicyRules(client, helpers.Role, dynamicRole.Namespace, dynamicRole.Spec.Inherit, dynamicRole.Spec.Allow, dynamicRole.Spec.Deny)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	outputRole := &v1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dynamicRole.Name,
+			Namespace: dynamicRole.Namespace,
+			Annotations: map[string]string{
+				"managed-by": "dynamic-rbac-operator",
+			},
+		},
+		Rules: *rules,
+	}
+
+	if err := controllerutil.SetControllerReference(dynamicRole, outputRole, scheme); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	logger.Info(fmt.Sprintf("Computed role with %d rules.", len(outputRole.Rules)))
+	logger.Info("Creating or Updating Role")
+	err = helpers.CreateOrUpdateRole(outputRole, client)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	return reconcile.Result{}, nil
+}
+
+func (r *DynamicRoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&rbacv1alpha1.DynamicRole{}).
+		Complete(r)
+}

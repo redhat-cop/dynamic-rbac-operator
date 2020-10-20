@@ -1,0 +1,24 @@
+# permissions for end users to edit dynamicclusterroles.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dynamicclusterrole-editor-role
+rules:
+- apiGroups:
+  - rbac.redhatcop.redhat.io
+  resources:
+  - dynamicclusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.redhatcop.redhat.io
+  resources:
+  - dynamicclusterroles/status
+  verbs:
+  - get

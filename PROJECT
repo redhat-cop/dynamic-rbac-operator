@@ -1,0 +1,14 @@
+domain: redhatcop.redhat.io
+layout: go.kubebuilder.io/v2
+projectName: dynamic-rbac-operator
+repo: github.com/redhat-cop/dynamic-rbac-operator
+resources:
+- group: rbac
+  kind: DynamicRole
+  version: v1alpha1
+- group: rbac
+  kind: DynamicClusterRole
+  version: v1alpha1
+version: 3-alpha
+plugins:
+  go.sdk.operatorframework.io/v2-alpha: {}

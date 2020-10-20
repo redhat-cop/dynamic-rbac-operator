@@ -1,0 +1,54 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - rbac.redhatcop.redhat.io
+  resources:
+  - dynamicclusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.redhatcop.redhat.io
+  resources:
+  - dynamicclusterroles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - rbac.redhatcop.redhat.io
+  resources:
+  - dynamicroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.redhatcop.redhat.io
+  resources:
+  - dynamicroles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - "*"
+  resources:
+  - "*"
+  verbs:
+  - "*"
