@@ -27,7 +27,7 @@ spec:
         - /manager
         args:
         - --enable-leader-election
-        image: quay.io/jacobsee/dynamic-rbac-operator:latest
+        image: quay.io/redhat-cop/dynamic-rbac-operator:latest
         name: manager
         resources:
           limits:
