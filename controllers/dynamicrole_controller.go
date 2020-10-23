@@ -39,6 +39,7 @@ type DynamicRoleReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+	Cache  *helpers.ResourceCache
 }
 
 // +kubebuilder:rbac:groups=rbac.redhatcop.redhat.io,resources=dynamicroles,verbs=get;list;watch;create;update;patch;delete
@@ -59,11 +60,11 @@ func (r *DynamicRoleReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error)
 		return reconcile.Result{}, err
 	}
 
-	return ReconcileDynamicRole(instance, r.Client, r.Scheme, r.Log)
+	return ReconcileDynamicRole(instance, r.Client, r.Scheme, r.Log, r.Cache)
 }
 
-func ReconcileDynamicRole(dynamicRole *rbacv1alpha1.DynamicRole, client client.Client, scheme *runtime.Scheme, logger logr.Logger) (ctrl.Result, error) {
-	rules, err := helpers.BuildPolicyRules(client, helpers.Role, dynamicRole.Namespace, dynamicRole.Spec.Inherit, dynamicRole.Spec.Allow, dynamicRole.Spec.Deny)
+func ReconcileDynamicRole(dynamicRole *rbacv1alpha1.DynamicRole, client client.Client, scheme *runtime.Scheme, logger logr.Logger, cache *helpers.ResourceCache) (ctrl.Result, error) {
+	rules, err := helpers.BuildPolicyRules(client, *cache, helpers.Role, dynamicRole.Namespace, dynamicRole.Spec.Inherit, dynamicRole.Spec.Allow, dynamicRole.Spec.Deny)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

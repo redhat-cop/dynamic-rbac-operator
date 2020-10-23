@@ -22,7 +22,7 @@ const (
 )
 
 // BuildPolicyRules takes an inherited role, an allow list, and a deny list; and processes everything into a list of policy rules
-func BuildPolicyRules(client client.Client, roleType RoleType, forNamespace string, inherit *[]v1alpha1.InheritedRole, allow *[]v1.PolicyRule, deny *[]v1.PolicyRule) (*[]v1.PolicyRule, error) {
+func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleType, forNamespace string, inherit *[]v1alpha1.InheritedRole, allow *[]v1.PolicyRule, deny *[]v1.PolicyRule) (*[]v1.PolicyRule, error) {
 	rules := []v1.PolicyRule{}
 
 	if inherit != nil {
@@ -42,9 +42,9 @@ func BuildPolicyRules(client client.Client, roleType RoleType, forNamespace stri
 				// nonResourceURLs do not make sense to move from a ClusterRole to a Role
 				var enumeratedPolicyRules []v1.PolicyRule
 				if roleType == Role {
-					enumeratedPolicyRules, err = EnumeratePolicyRules(StripNonResourceURLs(inheritedClusterRole.Rules))
+					enumeratedPolicyRules, err = EnumeratePolicyRules(StripNonResourceURLs(inheritedClusterRole.Rules), &cache)
 				} else {
-					enumeratedPolicyRules, err = EnumeratePolicyRules(inheritedClusterRole.Rules)
+					enumeratedPolicyRules, err = EnumeratePolicyRules(inheritedClusterRole.Rules, &cache)
 				}
 				expandedPolicyRules := ExpandPolicyRules(enumeratedPolicyRules)
 				rules = append(rules, expandedPolicyRules...)
@@ -62,7 +62,7 @@ func BuildPolicyRules(client client.Client, roleType RoleType, forNamespace stri
 				if err != nil {
 					return nil, err
 				}
-				enumeratedPolicyRules, err := EnumeratePolicyRules(inheritedRole.Rules)
+				enumeratedPolicyRules, err := EnumeratePolicyRules(inheritedRole.Rules, &cache)
 				expandedPolicyRules := ExpandPolicyRules(enumeratedPolicyRules)
 				rules = append(rules, expandedPolicyRules...)
 			}
@@ -77,9 +77,8 @@ func BuildPolicyRules(client client.Client, roleType RoleType, forNamespace stri
 }
 
 // EnumeratePolicyRules takes a list of rules with wildcards and returns a list of policy rules with resources explicitly enumerated
-func EnumeratePolicyRules(inputRules []rbacv1.PolicyRule) ([]rbacv1.PolicyRule, error) {
+func EnumeratePolicyRules(inputRules []rbacv1.PolicyRule, cache *ResourceCache) ([]rbacv1.PolicyRule, error) {
 	rules := []rbacv1.PolicyRule{}
-	cache := GetCacheInstance()
 	allPossibleRules := cache.AllPolicies
 	for _, rule := range inputRules {
 		if ruleHasGroupWildcard(&rule) && ruleHasResourceWildcard(&rule) {

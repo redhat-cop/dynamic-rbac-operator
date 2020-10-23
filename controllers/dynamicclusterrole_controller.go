@@ -39,6 +39,7 @@ type DynamicClusterRoleReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+	Cache  *helpers.ResourceCache
 }
 
 // +kubebuilder:rbac:groups=rbac.redhatcop.redhat.io,resources=dynamicclusterroles,verbs=get;list;watch;create;update;patch;delete
@@ -59,11 +60,11 @@ func (r *DynamicClusterRoleReconciler) Reconcile(req ctrl.Request) (ctrl.Result,
 		return reconcile.Result{}, err
 	}
 
-	return ReconcileDynamicClusterRole(instance, r.Client, r.Scheme, r.Log)
+	return ReconcileDynamicClusterRole(instance, r.Client, r.Scheme, r.Log, r.Cache)
 }
 
-func ReconcileDynamicClusterRole(dynamicClusterRole *rbacv1alpha1.DynamicClusterRole, client client.Client, scheme *runtime.Scheme, logger logr.Logger) (ctrl.Result, error) {
-	rules, err := helpers.BuildPolicyRules(client, helpers.ClusterRole, "", dynamicClusterRole.Spec.Inherit, dynamicClusterRole.Spec.Allow, dynamicClusterRole.Spec.Deny)
+func ReconcileDynamicClusterRole(dynamicClusterRole *rbacv1alpha1.DynamicClusterRole, client client.Client, scheme *runtime.Scheme, logger logr.Logger, cache *helpers.ResourceCache) (ctrl.Result, error) {
+	rules, err := helpers.BuildPolicyRules(client, *cache, helpers.ClusterRole, "", dynamicClusterRole.Spec.Inherit, dynamicClusterRole.Spec.Allow, dynamicClusterRole.Spec.Deny)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
