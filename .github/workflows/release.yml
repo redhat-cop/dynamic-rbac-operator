@@ -33,7 +33,7 @@ jobs:
         registry: quay.io
         repository: redhat-cop/dynamic-rbac-operator
         push: true
-        tags: "${{ github.sha }},master"
+        tags: "${{ github.sha }},latest"
 
   release:
     runs-on: ubuntu-latest

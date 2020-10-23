@@ -3,7 +3,7 @@ name: build-dynamic-rbac-operator
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build_test_push:
@@ -30,4 +30,4 @@ jobs:
           registry: quay.io
           repository: redhat-cop/dynamic-rbac-operator
           push: true
-          tags: "${{ github.sha }},master"
+          tags: "${{ github.sha }},latest"
