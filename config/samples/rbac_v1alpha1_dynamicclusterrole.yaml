@@ -1,0 +1,15 @@
+apiVersion: rbac.redhatcop.redhat.io/v1alpha1
+kind: DynamicClusterRole
+metadata:
+  name: dynamicclusterrole-sample
+spec:
+  inherit:
+    - name: cluster-admin
+      kind: ClusterRole
+  deny:
+    - apiGroups:
+        - "user.openshift.io"
+      resources:
+        - "*"
+      verbs:
+        - "*"

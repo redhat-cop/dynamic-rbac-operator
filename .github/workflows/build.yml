@@ -1,0 +1,33 @@
+
+name: build-dynamic-rbac-operator
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build_test_push:
+    name: "Build Test and Push"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Go Configuration
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.15
+        id: go
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build Operator
+        run: make
+      # - name: Test
+      #   run: make test
+      - name: "Build and Push Image"
+        uses: docker/build-push-action@v1
+        with:
+          dockerfile: Dockerfile
+          username: ${{ secrets.OPERATOR_REGISTRY_USERNAME }}
+          password: ${{ secrets.OPERATOR_REGISTRY_PASSWORD }}
+          registry: quay.io
+          repository: redhat-cop/dynamic-rbac-operator
+          push: true
+          tags: "${{ github.sha }},master"

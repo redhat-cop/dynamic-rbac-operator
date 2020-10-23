@@ -1,0 +1,5 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- rbac_v1alpha1_dynamicrole.yaml
+- rbac_v1alpha1_dynamicclusterrole.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

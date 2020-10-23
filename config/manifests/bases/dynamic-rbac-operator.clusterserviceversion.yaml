@@ -1,0 +1,55 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    operators.operatorframework.io/builder: operator-sdk-v1.0.1
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v2
+  name: dynamic-rbac-operator.vX.Y.Z
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: DynamicRole is the Schema for the dynamicroles API
+      displayName: Dynamic Role
+      kind: DynamicRole
+      name: dynamicroles.rbac.redhatcop.redhat.io
+      version: v1alpha1
+    - description: DynamicClusterRole is the Schema for the dynamicclusterroles API
+      displayName: Dynamic Cluster Role
+      kind: DynamicClusterRole
+      name: dynamicclusterroles.rbac.redhatcop.redhat.io
+      version: v1alpha1
+  description: Flexible definitions of Kubernetes RBAC rules
+  displayName: dynamic-rbac-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - rbac
+  links:
+  - name: Dynamic RBAC Operator
+    url: https://github.com/redhat-cop/dynamic-rbac-operator
+  maintainers:
+  - email: jasee@redhat.com
+    name: Jacob See
+  maturity: alpha
+  provider:
+    name: redhat-cop
+    url: https://github.com/redhat-cop
+  version: 0.0.0
