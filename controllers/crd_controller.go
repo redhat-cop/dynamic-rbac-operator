@@ -37,6 +37,7 @@ type CustomResourceDefinitionReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+	Cache  *helpers.ResourceCache
 }
 
 // +kubebuilder:rbac:groups=rbac.redhatcop.redhat.io,resources=dynamicroles,verbs=get;list;watch;create;update;patch;delete
@@ -45,8 +46,6 @@ type CustomResourceDefinitionReconciler struct {
 func (r *CustomResourceDefinitionReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	_ = r.Log.WithValues("dynamicrole", req.NamespacedName)
-
-	cache := helpers.GetCacheInstance()
 
 	instance := &crdv1beta1.CustomResourceDefinition{}
 	crdWasDeleted := false
@@ -63,15 +62,15 @@ func (r *CustomResourceDefinitionReconciler) Reconcile(req ctrl.Request) (ctrl.R
 
 	if !crdWasDeleted {
 		crdJSON, _ := json.Marshal(instance.Spec)
-		if _, ok := cache.CRDs[instance.Name]; ok {
-			cache.CRDs[instance.Name] = string(crdJSON)
+		if _, ok := r.Cache.CRDs[instance.Name]; ok {
+			r.Cache.CRDs[instance.Name] = string(crdJSON)
 			r.Log.Info("CRD is in cache - reconciliation is not required")
 			return reconcile.Result{}, nil
 		}
-		cache.CRDs[instance.Name] = string(crdJSON)
+		r.Cache.CRDs[instance.Name] = string(crdJSON)
 		r.Log.Info("CRD not previously seen - reconciliation of all computed roles is required")
 	} else {
-		delete(cache.CRDs, req.Name)
+		delete(r.Cache.CRDs, req.Name)
 		r.Log.Info("CRD deleted - reconciliation of all computed roles is required")
 	}
 
@@ -85,7 +84,7 @@ func (r *CustomResourceDefinitionReconciler) Reconcile(req ctrl.Request) (ctrl.R
 		return reconcile.Result{}, err
 	}
 	allPossibleRules := helpers.APIResourcesToExpandedRules(apiResourceList)
-	cache.AllPolicies = &allPossibleRules
+	r.Cache.AllPolicies = &allPossibleRules
 	r.Log.Info("Rebuilt cluster policy cache")
 
 	dynamicRoleList := &rbacv1alpha1.DynamicRoleList{}
@@ -95,7 +94,7 @@ func (r *CustomResourceDefinitionReconciler) Reconcile(req ctrl.Request) (ctrl.R
 		return reconcile.Result{}, err
 	}
 	for _, dynamicRole := range dynamicRoleList.Items {
-		_, err := ReconcileDynamicRole(&dynamicRole, r.Client, r.Scheme, r.Log)
+		_, err := ReconcileDynamicRole(&dynamicRole, r.Client, r.Scheme, r.Log, r.Cache)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -107,7 +106,7 @@ func (r *CustomResourceDefinitionReconciler) Reconcile(req ctrl.Request) (ctrl.R
 		return reconcile.Result{}, err
 	}
 	for _, dynamicClusterRole := range dynamicClusterRoleList.Items {
-		_, err := ReconcileDynamicClusterRole(&dynamicClusterRole, r.Client, r.Scheme, r.Log)
+		_, err := ReconcileDynamicClusterRole(&dynamicClusterRole, r.Client, r.Scheme, r.Log, r.Cache)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
