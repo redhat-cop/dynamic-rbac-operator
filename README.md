@@ -48,7 +48,7 @@ This operator can be installed with Kustomize:
 
 Once the operator is installed, you can begin using `DynamicRole` and `DynamicClusterRole` resources within your cluster.
 
-For example, the `DynamicClusterRole`:
+For example, the following `DynamicClusterRole` inherits all rules from `cluster-admin`, except the `user.openshift.io` group, and _only_ allows access to `pods` in the `metrics.k8s.io` group:
 
 ```yaml
 apiVersion: rbac.redhatcop.redhat.io/v1alpha1
@@ -63,7 +63,20 @@ spec:
     - apiGroups:
         - "user.openshift.io"
       resources:
-        - "users"
+        - "*"
+      verbs:
+        - "*"
+    - apiGroups:
+        - "metrics.k8s.io"
+      resources:
+        - "*"
+      verbs:
+        - "*"
+  allow:
+    - apiGroups:
+        - "metrics.k8s.io"
+      resources:
+        - "pods"
       verbs:
         - "*"
 ```
@@ -77,12 +90,6 @@ You can then create a `RoleBinding` or `ClusterRoleBinding` to `admin-without-us
 ## Roadmap
 
 See the [open issues](https://github.com/redhat-cop/dynamic-rbac-operator/issues) for a list of proposed features.
-
-## Known Issues
-
-1. Only one role can be inherited right now, even though it is spec'd as a list, because ruleset merging is still WIP.
-2. Allow lists are in the spec but not yet implemented, because of the same reason as above.
-3. This operator requires `cluster-admin` privileges, because it needs to be able to write RBAC rules that grant arbitrary permissions that it doesn't actually need itself. `make manifests` currently overwrites this.
 
 <!-- CONTRIBUTING -->
 

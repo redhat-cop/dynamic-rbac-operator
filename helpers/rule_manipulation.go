@@ -7,7 +7,6 @@ import (
 
 	"github.com/jinzhu/copier"
 	"github.com/redhat-cop/dynamic-rbac-operator/api/v1alpha1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -26,10 +25,6 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 	rules := []v1.PolicyRule{}
 
 	if inherit != nil {
-		if len(*inherit) != 1 {
-			// TODO: multi-role inheritance, merging policies, etc.
-			return nil, errors.New("this operator only supports one inherited role right now")
-		}
 		for _, roleToInherit := range *inherit {
 			switch roleToInherit.Kind {
 			case "ClusterRole":
@@ -47,7 +42,7 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 					enumeratedPolicyRules, err = EnumeratePolicyRules(inheritedClusterRole.Rules, &cache)
 				}
 				expandedPolicyRules := ExpandPolicyRules(enumeratedPolicyRules)
-				rules = append(rules, expandedPolicyRules...)
+				rules = MergeExpandedPolicyRules(rules, expandedPolicyRules)
 			case "Role":
 				if roleType == ClusterRole && roleToInherit.Namespace == "" {
 					return nil, errors.New("a Cluster Role cannot inherit from a Role without a namespace specified")
@@ -64,7 +59,7 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 				}
 				enumeratedPolicyRules, err := EnumeratePolicyRules(inheritedRole.Rules, &cache)
 				expandedPolicyRules := ExpandPolicyRules(enumeratedPolicyRules)
-				rules = append(rules, expandedPolicyRules...)
+				rules = MergeExpandedPolicyRules(rules, expandedPolicyRules)
 			}
 		}
 	}
@@ -73,16 +68,24 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 		rules = ApplyDenyRulesToExpandedRuleset(rules, *deny)
 	}
 
+	if allow != nil {
+		allowRules, err := EnumeratePolicyRules(*allow, &cache)
+		if err != nil {
+			return nil, err
+		}
+		rules = MergeExpandedPolicyRules(rules, ExpandPolicyRules(allowRules))
+	}
+
 	return &rules, nil
 }
 
 // EnumeratePolicyRules takes a list of rules with wildcards and returns a list of policy rules with resources explicitly enumerated
-func EnumeratePolicyRules(inputRules []rbacv1.PolicyRule, cache *ResourceCache) ([]rbacv1.PolicyRule, error) {
-	rules := []rbacv1.PolicyRule{}
+func EnumeratePolicyRules(inputRules []v1.PolicyRule, cache *ResourceCache) ([]v1.PolicyRule, error) {
+	rules := []v1.PolicyRule{}
 	allPossibleRules := cache.AllPolicies
 	for _, rule := range inputRules {
 		if ruleHasGroupWildcard(&rule) && ruleHasResourceWildcard(&rule) {
-			var relevantRules []rbacv1.PolicyRule
+			var relevantRules []v1.PolicyRule
 			copier.Copy(&relevantRules, allPossibleRules)
 			if !stringInSlice(rule.Verbs, "*") {
 				for index := range relevantRules {
@@ -94,9 +97,13 @@ func EnumeratePolicyRules(inputRules []rbacv1.PolicyRule, cache *ResourceCache) 
 			for _, resource := range rule.Resources {
 				for _, matchedRule := range *allPossibleRules {
 					if stringInSlice(matchedRule.Resources, resource) {
-						var tmpRule rbacv1.PolicyRule
+						var tmpRule v1.PolicyRule
 						copier.Copy(&tmpRule, &matchedRule)
-						copier.Copy(&tmpRule.Verbs, &rule.Verbs)
+						if !stringInSlice(rule.Verbs, "*") {
+							copier.Copy(&tmpRule.Verbs, &rule.Verbs)
+						} else {
+							copier.Copy(&tmpRule.Verbs, &matchedRule.Verbs)
+						}
 						rules = append(rules, tmpRule)
 					}
 				}
@@ -105,23 +112,45 @@ func EnumeratePolicyRules(inputRules []rbacv1.PolicyRule, cache *ResourceCache) 
 			for _, group := range rule.APIGroups {
 				for _, matchedRule := range *allPossibleRules {
 					if stringInSlice(matchedRule.APIGroups, group) {
-						var tmpRule rbacv1.PolicyRule
+						var tmpRule v1.PolicyRule
 						copier.Copy(&tmpRule, &matchedRule)
-						copier.Copy(&tmpRule.Verbs, &rule.Verbs)
+						if !stringInSlice(rule.Verbs, "*") {
+							copier.Copy(&tmpRule.Verbs, &rule.Verbs)
+						} else {
+							copier.Copy(&tmpRule.Verbs, &matchedRule.Verbs)
+						}
 						rules = append(rules, tmpRule)
 					}
 				}
 			}
 		} else {
-			rules = append(rules, rule)
+			for _, group := range rule.APIGroups {
+				if group == "v1" {
+					group = ""
+				}
+				for _, resource := range rule.Resources {
+					for _, matchedRule := range *allPossibleRules {
+						if stringInSlice(matchedRule.APIGroups, group) && stringInSlice(matchedRule.Resources, resource) {
+							var tmpRule v1.PolicyRule
+							copier.Copy(&tmpRule, &matchedRule)
+							if !stringInSlice(rule.Verbs, "*") {
+								copier.Copy(&tmpRule.Verbs, &rule.Verbs)
+							} else {
+								copier.Copy(&tmpRule.Verbs, &matchedRule.Verbs)
+							}
+							rules = append(rules, tmpRule)
+						}
+					}
+				}
+			}
 		}
 	}
 	return rules, nil
 }
 
 // ExpandPolicyRules ensures that multiple resources with the same verbs are not grouped together in the same rule definition (makes it easier to edit individual verbs later)
-func ExpandPolicyRules(inputRules []rbacv1.PolicyRule) []rbacv1.PolicyRule {
-	rules := []rbacv1.PolicyRule{}
+func ExpandPolicyRules(inputRules []v1.PolicyRule) []v1.PolicyRule {
+	rules := []v1.PolicyRule{}
 	for _, rule := range inputRules {
 		if len(rule.Resources) > 1 {
 			for _, resource := range rule.Resources {
@@ -129,7 +158,7 @@ func ExpandPolicyRules(inputRules []rbacv1.PolicyRule) []rbacv1.PolicyRule {
 				var newAPIGroups []string
 				copier.Copy(&newVerbs, &rule.Verbs)
 				copier.Copy(&newAPIGroups, &rule.APIGroups)
-				newRule := rbacv1.PolicyRule{
+				newRule := v1.PolicyRule{
 					APIGroups: newAPIGroups,
 					Resources: []string{resource},
 					Verbs:     newVerbs,
@@ -137,7 +166,7 @@ func ExpandPolicyRules(inputRules []rbacv1.PolicyRule) []rbacv1.PolicyRule {
 				rules = append(rules, newRule)
 			}
 		} else {
-			var tmpRule rbacv1.PolicyRule
+			var tmpRule v1.PolicyRule
 			copier.Copy(&tmpRule, &rule)
 			rules = append(rules, tmpRule)
 		}
@@ -145,9 +174,14 @@ func ExpandPolicyRules(inputRules []rbacv1.PolicyRule) []rbacv1.PolicyRule {
 	return rules
 }
 
+// MergeExpandedPolicyRules takes two expanded rulesets (see func `ExpandPolicyRules`) and returns one merged expanded ruleset
+func MergeExpandedPolicyRules(first []v1.PolicyRule, second []v1.PolicyRule) []v1.PolicyRule {
+	return irToPolicyList(unionIRs(policyListToIR(first), policyListToIR(second)))
+}
+
 // APIResourcesToExpandedRules converts an APIResourceList into a list of PolicyRules with all verbs allowed
-func APIResourcesToExpandedRules(resourceLists []*metav1.APIResourceList) []rbacv1.PolicyRule {
-	policyRules := make([]rbacv1.PolicyRule, 0, 100)
+func APIResourcesToExpandedRules(resourceLists []*metav1.APIResourceList) []v1.PolicyRule {
+	outputIR := make(policyListIR)
 
 	for _, resourceList := range resourceLists {
 		for _, resource := range resourceList.APIResources {
@@ -159,20 +193,25 @@ func APIResourcesToExpandedRules(resourceLists []*metav1.APIResourceList) []rbac
 			if len(resource.Verbs) > 0 {
 				copier.Copy(&verbs, &resource.Verbs)
 			}
-			policyRules = append(policyRules, rbacv1.PolicyRule{
-				APIGroups: []string{group},
-				Resources: []string{resource.Name},
-				Verbs:     verbs,
-			})
+			currentPolicyKey := expandedPolicyKey{
+				APIGroup: group,
+				Resource: resource.Name,
+			}
+			if _, ok := outputIR[currentPolicyKey]; ok {
+				// We do this so that we don't generate multiple policy rules for a resource that exists as multiple versions - i.e. v1alpha1, v1beta1, etc.
+				outputIR[currentPolicyKey] = appendSet(outputIR[currentPolicyKey], verbs...)
+			} else {
+				outputIR[currentPolicyKey] = verbs
+			}
 		}
 	}
 
-	return policyRules
+	return irToPolicyList(outputIR)
 }
 
 // ApplyDenyRulesToExpandedRuleset takes in an expanded ruleset (see func `ExpandPolicyRules`) and removes anything matching the deny rules
-func ApplyDenyRulesToExpandedRuleset(fullRuleSet []rbacv1.PolicyRule, denyRules []rbacv1.PolicyRule) []rbacv1.PolicyRule {
-	outputRules := []rbacv1.PolicyRule{}
+func ApplyDenyRulesToExpandedRuleset(fullRuleSet []v1.PolicyRule, denyRules []v1.PolicyRule) []v1.PolicyRule {
+	outputIR := policyListToIR(fullRuleSet)
 
 	for _, rule := range fullRuleSet {
 		for _, denyRule := range denyRules {
@@ -188,22 +227,28 @@ func ApplyDenyRulesToExpandedRuleset(fullRuleSet []rbacv1.PolicyRule, denyRules 
 				denyRuleApplies = true
 			}
 			if denyRuleApplies {
+				currentPolicyKey := expandedPolicyKey{
+					APIGroup: rule.APIGroups[0],
+					Resource: rule.Resources[0],
+				}
 				if !stringInSlice(denyRule.Verbs, "*") {
 					newVerbs = subtractStringSlices(rule.Verbs, denyRule.Verbs)
 					if len(newVerbs) > 0 {
-						var tmpRule rbacv1.PolicyRule
+						var tmpRule v1.PolicyRule
 						copier.Copy(&tmpRule, &rule)
 						tmpRule.Verbs = newVerbs
-						outputRules = append(outputRules, tmpRule)
+						outputIR[currentPolicyKey] = newVerbs
+					} else {
+						delete(outputIR, currentPolicyKey)
 					}
+				} else {
+					delete(outputIR, currentPolicyKey)
 				}
-			} else {
-				outputRules = append(outputRules, rule)
 			}
 		}
 	}
 
-	return outputRules
+	return irToPolicyList(outputIR)
 }
 
 // StripNonResourceURLs takes a list of PolicyRules that may specify NonResourceURLs and returns the same list without any NonResourceURLs
@@ -219,10 +264,10 @@ func StripNonResourceURLs(rules []v1.PolicyRule) []v1.PolicyRule {
 	return rules[:ln]
 }
 
-func ruleHasGroupWildcard(rule *rbacv1.PolicyRule) bool {
+func ruleHasGroupWildcard(rule *v1.PolicyRule) bool {
 	return stringInSlice(rule.APIGroups, "*")
 }
 
-func ruleHasResourceWildcard(rule *rbacv1.PolicyRule) bool {
+func ruleHasResourceWildcard(rule *v1.PolicyRule) bool {
 	return stringInSlice(rule.Resources, "*")
 }
