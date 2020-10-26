@@ -76,10 +76,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	cache := helpers.GetCacheInstance()
+
 	if err = (&controllers.CustomResourceDefinitionReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("CustomResourceDefinition"),
 		Scheme: mgr.GetScheme(),
+		Cache:  cache,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CustomResourceDefinition")
 		os.Exit(1)
@@ -88,6 +91,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("DynamicRole"),
 		Scheme: mgr.GetScheme(),
+		Cache:  cache,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DynamicRole")
 		os.Exit(1)
@@ -96,6 +100,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("DynamicClusterRole"),
 		Scheme: mgr.GetScheme(),
+		Cache:  cache,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DynamicClusterRole")
 		os.Exit(1)
@@ -104,7 +109,6 @@ func main() {
 
 	// Begin cache setup
 	setupLog.Info("Performing pre-controller setup")
-	cache := helpers.GetCacheInstance()
 	restConfig, err := ctrl.GetConfig()
 	if err != nil {
 		setupLog.Error(err, "could not instantiate a client for pre-controller setup processes")
