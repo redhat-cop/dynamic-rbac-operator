@@ -69,7 +69,7 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 	}
 
 	if allow != nil {
-		allowRules, err := EnumeratePolicyRules(*allow)
+		allowRules, err := EnumeratePolicyRules(*allow, &cache)
 		if err != nil {
 			return nil, err
 		}
