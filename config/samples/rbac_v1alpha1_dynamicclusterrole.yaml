@@ -13,3 +13,16 @@ spec:
         - "*"
       verbs:
         - "*"
+    - apiGroups:
+        - "metrics.k8s.io"
+      resources:
+        - "*"
+      verbs:
+        - "*"
+  allow:
+    - apiGroups:
+        - "metrics.k8s.io"
+      resources:
+        - "pods"
+      verbs:
+        - "*"
