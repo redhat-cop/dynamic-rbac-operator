@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	rbacv1alpha1 "github.com/redhat-cop/dynamic-rbac-operator/api/v1alpha1"
 	helpers "github.com/redhat-cop/dynamic-rbac-operator/helpers"
 )
 
@@ -87,33 +86,12 @@ func (r *CustomResourceDefinitionReconciler) Reconcile(req ctrl.Request) (ctrl.R
 	r.Cache.AllPolicies = &allPossibleRules
 	r.Log.Info("Rebuilt cluster policy cache")
 
-	dynamicRoleList := &rbacv1alpha1.DynamicRoleList{}
-	err = r.Client.List(context.TODO(), dynamicRoleList)
-	if err != nil {
-		r.Log.Error(err, "could not list Dynamic Roles")
-		return reconcile.Result{}, err
-	}
-	for _, dynamicRole := range dynamicRoleList.Items {
-		_, err := ReconcileDynamicRole(&dynamicRole, r.Client, r.Scheme, r.Log, r.Cache)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-	dynamicClusterRoleList := &rbacv1alpha1.DynamicClusterRoleList{}
-	err = r.Client.List(context.TODO(), dynamicClusterRoleList)
-	if err != nil {
-		r.Log.Error(err, "could not list Dynamic Cluster Roles")
-		return reconcile.Result{}, err
-	}
-	for _, dynamicClusterRole := range dynamicClusterRoleList.Items {
-		_, err := ReconcileDynamicClusterRole(&dynamicClusterRole, r.Client, r.Scheme, r.Log, r.Cache)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	}
+	// Recompute everything using the newly-refreshed cache
+	result, err := UpdateAllDynamicResources(r.Client, r.Log, r.Scheme, r.Cache)
+
 	r.Log.Info("All computed roles have been reconciled")
 
-	return ctrl.Result{}, nil
+	return result, err
 }
 
 func (r *CustomResourceDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) error {
