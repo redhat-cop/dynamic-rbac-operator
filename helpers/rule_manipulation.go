@@ -34,9 +34,10 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 				if err != nil {
 					return nil, err
 				}
-				// nonResourceURLs do not make sense to move from a ClusterRole to a Role
+				cache.WatchedClusterRoles[clusterRoleNamespacedName] = true
 				var enumeratedPolicyRules []v1.PolicyRule
 				if roleType == Role {
+					// nonResourceURLs do not make sense to move from a ClusterRole to a Role
 					enumeratedPolicyRules, err = EnumeratePolicyRules(StripNonResourceURLs(inheritedClusterRole.Rules), &cache)
 				} else {
 					enumeratedPolicyRules, err = EnumeratePolicyRules(inheritedClusterRole.Rules, &cache)
@@ -57,6 +58,7 @@ func BuildPolicyRules(client client.Client, cache ResourceCache, roleType RoleTy
 				if err != nil {
 					return nil, err
 				}
+				cache.WatchedRoles[roleNamespacedName] = true
 				enumeratedPolicyRules, err := EnumeratePolicyRules(inheritedRole.Rules, &cache)
 				expandedPolicyRules := ExpandPolicyRules(enumeratedPolicyRules)
 				rules = MergeExpandedPolicyRules(rules, expandedPolicyRules)

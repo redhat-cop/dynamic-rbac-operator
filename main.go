@@ -105,6 +105,24 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "DynamicClusterRole")
 		os.Exit(1)
 	}
+	if err = (&controllers.RoleReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("Role"),
+		Scheme: mgr.GetScheme(),
+		Cache:  cache,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Role")
+		os.Exit(1)
+	}
+	if err = (&controllers.ClusterRoleReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("ClusterRole"),
+		Scheme: mgr.GetScheme(),
+		Cache:  cache,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterRole")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	// Begin cache setup
