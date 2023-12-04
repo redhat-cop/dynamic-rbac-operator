@@ -41,7 +41,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: tag with release version
-      uses: tinact/docker.image-retag@1.0.2
+      uses: tinact/docker.image-retag@1.0.3
       with:
         image_name: redhat-cop/dynamic-rbac-operator
         image_old_tag: ${{ github.sha }}
@@ -50,7 +50,7 @@ jobs:
         registry_username: ${{ secrets.OPERATOR_REGISTRY_USERNAME }}
         registry_password: ${{ secrets.OPERATOR_REGISTRY_PASSWORD }}
     - name: tag with latest
-      uses: tinact/docker.image-retag@1.0.2
+      uses: tinact/docker.image-retag@1.0.3
       with:
         image_name: redhat-cop/dynamic-rbac-operator
         image_old_tag: ${{ github.sha }}
