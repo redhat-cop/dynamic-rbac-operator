@@ -3,7 +3,7 @@ module github.com/redhat-cop/dynamic-rbac-operator
 go 1.15
 
 require (
-	github.com/go-logr/logr v0.1.0
+	github.com/go-logr/logr v0.4.0
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
